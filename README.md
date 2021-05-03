@@ -4,7 +4,7 @@ myhttp
 `myhttp` is a tool that can make parallel GET requests to the given URLs. It will
 return the MD5 format of the response body along with the URL. If a request
 fails, it will provide a message to inform the user about the failure. `myhttp`
-quarentees that the outputs is consistent for every request.
+quarentees that the output is consistent for every request.
 
 Installation
 ------------
