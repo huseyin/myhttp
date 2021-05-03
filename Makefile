@@ -9,16 +9,16 @@ build:
 	@GOOS=linux GOARCH=amd64 go build -o ./bin/$(NAME)_$(VERSION)_linux_amd64
 	@GOOS=darwin GOARCH=amd64 go build -o ./bin/$(NAME)_$(VERSION)_darwin_amd64
 
-lint:
+deps:
 	@echo "+ $@"
-	@golint
+	@go mod tidy -v
 
-test: lint
+test: deps
 	@echo "+ $@"
-	@go test
+	@go test -race ./...
 
 clean:
 	@echo "+ $@"
 	@$(RM) -rf ./bin
 
-.PHONY: all build lint test clean
+.PHONY: all build deps test clean
