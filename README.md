@@ -1,4 +1,4 @@
-myhttp
+myhttp [![build](https://github.com/huseyin/myhttp/actions/workflows/go.yml/badge.svg)](https://github.com/huseyin/myhttp/actions/workflows/go.yml)
 ======
 
 `myhttp` is a tool that can make parallel GET requests to the given URLs. It will
