@@ -5,9 +5,9 @@ all: test
 
 build:
 	@echo "+ $@"
-	@GOOS=windows GOARCH=amd64 go build -o ./bin/$(NAME)_windows_amd64
-	@GOOS=linux GOARCH=amd64 go build -o ./bin/$(NAME)_linux_amd64
-	@GOOS=darwin GOARCH=amd64 go build -o ./bin/$(NAME)_darwin_amd64
+	@GOOS=windows GOARCH=amd64 go build -o ./bin/$(NAME)_$(VERSION)_windows_amd64
+	@GOOS=linux GOARCH=amd64 go build -o ./bin/$(NAME)_$(VERSION)_linux_amd64
+	@GOOS=darwin GOARCH=amd64 go build -o ./bin/$(NAME)_$(VERSION)_darwin_amd64
 
 lint:
 	@echo "+ $@"
