@@ -3,9 +3,11 @@ VERSION ?= $(shell git describe --tags --abbrev=0)
 
 all: test
 
-build: test
+build:
 	@echo "+ $@"
-	@go build -o "$(NAME)" myhttp.go
+	@GOOS=windows GOARCH=amd64 go build -o ./bin/$(NAME)_windows_amd64
+	@GOOS=linux GOARCH=amd64 go build -o ./bin/$(NAME)_linux_amd64
+	@GOOS=darwin GOARCH=amd64 go build -o ./bin/$(NAME)_darwin_amd64
 
 lint:
 	@echo "+ $@"
@@ -17,6 +19,6 @@ test: lint
 
 clean:
 	@echo "+ $@"
-	@$(RM) -f "$(NAME)"
+	@$(RM) -rf ./bin
 
 .PHONY: all build lint test clean
