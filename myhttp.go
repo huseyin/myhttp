@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"flag"
@@ -16,7 +15,9 @@ import (
 	"time"
 )
 
-const defaultTimeout = 10 * time.Second
+const (
+	defaultTimeout = 10 * time.Second
+)
 
 func main() {
 	var parallel = flag.Int("parallel", 10, "The number of parallel requests.")
@@ -28,18 +29,16 @@ func main() {
 		errAndExit("You must specify at least one URL.")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	w := &work{c: *parallel, urls: urls}
+	w.run()
 
 	// Listen to the signals to shutdown gracefully.
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	go func() {
 		<-c
-		cancel()
+		w.stop()
 	}()
-
-	w := &work{c: *parallel, urls: urls}
-	w.run(ctx)
 }
 
 type result struct {
@@ -59,16 +58,15 @@ func (r *result) output() string {
 }
 
 type work struct {
-	// urls is a collection of the URLs that will be used.
 	urls []string
 
-	// c is the concurrency level
-	c int
+	c int // concurrency level
 
+	pool     *sync.WaitGroup
 	initOnce sync.Once
+	stopCh   chan struct{}
 	results  chan *result
 
-	// w is where results will be written
 	w io.Writer
 }
 
@@ -76,18 +74,39 @@ type work struct {
 func (b *work) init() {
 	b.initOnce.Do(func() {
 		b.results = make(chan *result)
+		b.stopCh = make(chan struct{}, b.c)
 		b.w = b.writer()
+		b.pool = &sync.WaitGroup{}
+		b.pool.Add(len(b.urls))
 	})
 }
 
-// run makes all the requests, prints the result. It blocks until
-// all work is done.
-func (b *work) run(ctx context.Context) {
+// run makes all the requests, prints the result. It blocks
+// until all work is done.
+func (b *work) run() {
 	b.init()
+	b.doPool()
+	go func() {
+		b.finish()
+	}()
+	b.print()
+}
 
-	var wg sync.WaitGroup
-	wg.Add(len(b.urls))
+// stop gracefully shuts down the workers when a stop
+// signal received.
+func (b *work) stop() {
+	for i := 0; i < b.c; i++ {
+		b.stopCh <- struct{}{}
+	}
+}
 
+// finish closes the chan of results and waits for the workers.
+func (b *work) finish() {
+	b.pool.Wait()
+	close(b.results)
+}
+
+func (b *work) doPool() {
 	urls := make(chan string, len(b.urls))
 	for _, url := range b.urls {
 		urls <- url
@@ -97,23 +116,19 @@ func (b *work) run(ctx context.Context) {
 	for i := 0; i < b.c; i++ {
 		go func() {
 			for url := range urls {
-				b.results <- b.makeRequest(ctx, url)
-				wg.Done()
+				select {
+				case <-b.stopCh:
+					return
+				default:
+					b.results <- b.do(url)
+					b.pool.Done()
+				}
 			}
 		}()
 	}
-
-	go func() {
-		wg.Wait()
-		close(b.results)
-	}()
-
-	b.print()
 }
 
-// makeRequest makes a GET request with the provided context, returns a result
-// which is populated with the HTTP response.
-func (b *work) makeRequest(ctx context.Context, urlStr string) (res *result) {
+func (b *work) do(urlStr string) (res *result) {
 	res = &result{url: urlStr}
 
 	u, err := url.Parse(urlStr)
@@ -122,7 +137,7 @@ func (b *work) makeRequest(ctx context.Context, urlStr string) (res *result) {
 		return
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
 		res.err = err
 		return
@@ -156,7 +171,6 @@ func (b *work) writer() io.Writer {
 	return b.w
 }
 
-// print prints the results to where output points.
 func (b *work) print() {
 	for res := range b.results {
 		fmt.Fprintln(b.writer(), res.output())
