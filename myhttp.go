@@ -19,8 +19,9 @@ import (
 const defaultTimeout = 10 * time.Second
 
 func main() {
+	var parallel = flag.Int("parallel", 10, "The number of parallel requests.")
+
 	flag.Parse()
-	parallel := flag.Int("parallel", 10, "The number of parallel requests.")
 
 	urls := flag.Args()
 	if len(urls) == 0 {
