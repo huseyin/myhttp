@@ -1,237 +1,106 @@
 package main
 
 import (
-	"context"
+	"errors"
+	"fmt"
 	"io"
-	"reflect"
-	"sync"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
-func Test_main(t *testing.T) {
+func TestRequest(t *testing.T) {
+	var url string
+
+	body := "<html><body>Hello, world!</body></html>"
+
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		url = "http://" + r.Host
+
+		fmt.Fprintf(w, body)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(handler))
+	defer server.Close()
+
+	w := &work{
+		urls: []string{server.URL},
+		c:    1,
+		w:    io.Discard,
+	}
+
+	w.init()
+	w.doPool()
+	go w.finish()
+
+	for res := range w.results {
+		if url != res.url {
+			t.Errorf("%v received, %v expected.", url, res.url)
+		}
+
+		if res.err != nil {
+			t.Errorf("%v received, nil expected.", res.err)
+		}
+
+		if body != string(res.body) {
+			t.Errorf("%v received, %v expected.", body, string(res.body))
+		}
+	}
+}
+
+func TestOutput(t *testing.T) {
 	tests := []struct {
 		name string
-	}{}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			main()
-		})
-	}
-}
-
-func Test_result_output(t *testing.T) {
-	type fields struct {
-		url  string
-		err  error
-		body []byte
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		want   string
-	}{}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := &result{
-				url:  tt.fields.url,
-				err:  tt.fields.err,
-				body: tt.fields.body,
-			}
-			if got := r.output(); got != tt.want {
-				t.Errorf("result.output() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_work_init(t *testing.T) {
-	type fields struct {
-		urls     []string
-		c        int
-		initOnce sync.Once
-		results  chan *result
-		w        io.Writer
-	}
-	tests := []struct {
-		name   string
-		fields fields
+		src  *result
+		want string
 	}{
-		// TODO: Add test cases.
+		{
+			name: "test case without err",
+			src: &result{
+				url:  "https://example.com",
+				err:  nil,
+				body: []byte("test body"),
+			},
+			want: "https://example.com bbf9afe7431caf5f89a608bc31e8d822",
+		},
+		{
+			name: "test case with err",
+			src: &result{
+				url:  "https://example.com",
+				err:  errors.New("test error"),
+				body: []byte("test body"),
+			},
+			want: "https://example.com test error",
+		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			b := &work{
-				urls:     tt.fields.urls,
-				c:        tt.fields.c,
-				initOnce: tt.fields.initOnce,
-				results:  tt.fields.results,
-				w:        tt.fields.w,
-			}
-			b.init()
-		})
-	}
-}
 
-func Test_work_run(t *testing.T) {
-	type fields struct {
-		urls     []string
-		c        int
-		initOnce sync.Once
-		results  chan *result
-		w        io.Writer
-	}
-	type args struct {
-		ctx context.Context
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		args   args
-	}{
-		// TODO: Add test cases.
-	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			b := &work{
-				urls:     tt.fields.urls,
-				c:        tt.fields.c,
-				initOnce: tt.fields.initOnce,
-				results:  tt.fields.results,
-				w:        tt.fields.w,
+			if got := tt.src.output(); got != tt.want {
+				t.Errorf("%v received, %v expected.", got, tt.want)
 			}
-			b.run(tt.args.ctx)
-		})
-	}
-}
-
-func Test_work_makeRequest(t *testing.T) {
-	type fields struct {
-		urls     []string
-		c        int
-		initOnce sync.Once
-		results  chan *result
-		w        io.Writer
-	}
-	type args struct {
-		ctx    context.Context
-		urlStr string
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantRes *result
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			b := &work{
-				urls:     tt.fields.urls,
-				c:        tt.fields.c,
-				initOnce: tt.fields.initOnce,
-				results:  tt.fields.results,
-				w:        tt.fields.w,
-			}
-			if gotRes := b.makeRequest(tt.args.ctx, tt.args.urlStr); !reflect.DeepEqual(gotRes, tt.wantRes) {
-				t.Errorf("work.makeRequest() = %v, want %v", gotRes, tt.wantRes)
-			}
-		})
-	}
-}
-
-func Test_work_writer(t *testing.T) {
-	type fields struct {
-		urls     []string
-		c        int
-		initOnce sync.Once
-		results  chan *result
-		w        io.Writer
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		want   io.Writer
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			b := &work{
-				urls:     tt.fields.urls,
-				c:        tt.fields.c,
-				initOnce: tt.fields.initOnce,
-				results:  tt.fields.results,
-				w:        tt.fields.w,
-			}
-			if got := in0.String(); got != tt.want {
-				t.Errorf("work.writer() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_work_print(t *testing.T) {
-	type fields struct {
-		urls     []string
-		c        int
-		initOnce sync.Once
-		results  chan *result
-		w        io.Writer
-	}
-	tests := []struct {
-		name   string
-		fields fields
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			b := &work{
-				urls:     tt.fields.urls,
-				c:        tt.fields.c,
-				initOnce: tt.fields.initOnce,
-				results:  tt.fields.results,
-				w:        tt.fields.w,
-			}
-			b.print()
 		})
 	}
 }
 
 func TestMD5(t *testing.T) {
-	type args struct {
-		b []byte
-	}
 	tests := []struct {
 		name string
-		args args
+		data []byte
 		want string
 	}{
-		// TODO: Add test cases.
+		{
+			name: "test case",
+			data: []byte("test string"),
+			want: "6f8db599de986fab7a21625b7916589c",
+		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := MD5(tt.args.b); got != tt.want {
-				t.Errorf("MD5() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
 
-func Test_errAndExit(t *testing.T) {
-	type args struct {
-		msg string
-	}
-	tests := []struct {
-		name string
-		args args
-	}{
-		// TODO: Add test cases.
-	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errAndExit(tt.args.msg)
+			if got := MD5(tt.data); got != tt.want {
+				t.Errorf("%v received, %v expected.", got, tt.want)
+			}
 		})
 	}
 }
